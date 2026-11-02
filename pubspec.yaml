@@ -1,0 +1,33 @@
+name: smart_pos
+description: Contoh SmartPOS dengan modul Android on-demand EDC dan Pulsa/PPOB.
+publish_to: none
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.8.0 <4.0.0'
+  flutter: '>=3.32.8'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/core/
+  deferred-components:
+    - name: pulsaComponent
+      libraries:
+        - package:smart_pos/features/pulsa_module/pulsa_entry.dart
+      assets:
+        - assets/pulsa_assets/
+    - name: edcComponent
+      libraries:
+        - package:smart_pos/features/edc_module/edc_entry.dart
+      assets:
+        - assets/edc_assets/

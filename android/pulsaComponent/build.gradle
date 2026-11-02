@@ -1,0 +1,24 @@
+plugins { id 'com.android.dynamic-feature' }
+android {
+    namespace 'com.example.smart_pos.pulsaComponent'
+    compileSdk 35
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    defaultConfig {
+        minSdk 23
+        targetSdk 35
+    }
+    // Flutter stages the split Dart libraries and component assets here.
+    // Omitting these source sets produces feature splits without their payload.
+    sourceSets {
+        applicationVariants.all { variant ->
+            main.assets.srcDirs += "${project.layout.buildDirectory.get()}/intermediates/flutter/${variant.name}/deferred_assets"
+            main.jniLibs.srcDirs += "${project.layout.buildDirectory.get()}/intermediates/flutter/${variant.name}/deferred_libs"
+        }
+    }
+}
+dependencies {
+    implementation project(':app')
+}

@@ -1,0 +1,33 @@
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+    id 'dev.flutter.flutter-gradle-plugin'
+}
+android {
+    namespace 'com.example.smart_pos'
+    compileSdk 35
+    ndkVersion flutter.ndkVersion
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    kotlinOptions { jvmTarget = '17' }
+    defaultConfig {
+        applicationId 'com.example.smart_pos'
+        minSdk 23
+        targetSdk 35
+        versionCode flutter.versionCode
+        versionName flutter.versionName
+    }
+    dynamicFeatures = [':pulsaComponent', ':edcComponent']
+    buildTypes {
+        release {
+            // Development/internal testing only. Configure an upload key before production.
+            signingConfig signingConfigs.debug
+        }
+    }
+}
+flutter { source '../..' }
+dependencies {
+    implementation 'com.google.android.play:feature-delivery:2.1.0'
+}

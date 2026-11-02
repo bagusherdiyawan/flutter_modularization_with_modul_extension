@@ -1,0 +1,6 @@
+<resources>
+    <string name="pulsaComponentName">pulsaComponent</string>
+    <string name="edcComponentName">edcComponent</string>
+    <string name="pulsaFeatureTitle">Pulsa dan PPOB</string>
+    <string name="edcFeatureTitle">Mesin EDC</string>
+</resources>
