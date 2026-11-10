@@ -48,7 +48,33 @@ class FakeModules implements FeatureModules {
   }
 }
 
+Future<void> openFeature(WidgetTester tester, String key) async {
+  await tester.tap(find.byKey(Key(key)));
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 400));
+  if (find.text('Unduh').evaluate().isNotEmpty) {
+    await tester.tap(find.text('Unduh'));
+    await tester.pump();
+  }
+}
+
 void main() {
+  testWidgets('Menolak unduhan tidak memuat modul', (tester) async {
+    final modules = FakeModules();
+    await tester.pumpWidget(
+      SmartPosApp(
+        modules: modules,
+        storeConfig: StoreConfigService(usesEdc: true),
+      ),
+    );
+    await tester.tap(find.byKey(const Key('edc-payment')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.tap(find.text('Batal'));
+    await tester.pumpAndSettle();
+    expect(modules.edcLoads, 0);
+    expect(find.text('Unduh fitur EDC?'), findsNothing);
+  });
   testWidgets('Toko reguler tidak memuat modul; tunai selalu tersedia', (
     tester,
   ) async {
@@ -71,7 +97,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(modules.pulsaLoads, 0);
     await tester.ensureVisible(find.byKey(const Key('open-pulsa')));
-    await tester.tap(find.byKey(const Key('open-pulsa')));
+    await openFeature(tester, 'open-pulsa');
     await tester.pumpAndSettle();
     expect(modules.pulsaLoads, 1);
     expect(find.text('Pulsa STORE-JOGJA-01'), findsOneWidget);
@@ -85,7 +111,7 @@ void main() {
       await tester.pumpWidget(
         SmartPosApp(modules: modules, storeConfig: config),
       );
-      await tester.tap(find.byKey(const Key('edc-payment')));
+      await openFeature(tester, 'edc-payment');
       await tester.pump();
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
       expect(modules.edcLoads, 1);
@@ -94,7 +120,7 @@ void main() {
       expect(find.byType(CircularProgressIndicator), findsNothing);
       expect(find.textContaining('Modul EDC gagal'), findsOneWidget);
       modules.pendingLoad = null;
-      await tester.tap(find.byKey(const Key('edc-payment')));
+      await openFeature(tester, 'edc-payment');
       await tester.pumpAndSettle();
       expect(modules.edcLoads, 2);
       expect(find.textContaining('TEST-123'), findsOneWidget);
@@ -112,14 +138,14 @@ void main() {
         ),
       );
       await tester.ensureVisible(find.byKey(const Key('open-pulsa')));
-      await tester.tap(find.byKey(const Key('open-pulsa')));
+      await openFeature(tester, 'open-pulsa');
       await tester.pumpAndSettle();
       expect(find.textContaining('Modul Pulsa gagal'), findsOneWidget);
       expect(find.text('Pulsa STORE-JOGJA-01'), findsNothing);
       modules.fail = false;
       await tester.pump(const Duration(seconds: 5));
       await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const Key('open-pulsa')));
+      await openFeature(tester, 'open-pulsa');
       await tester.pumpAndSettle();
       expect(modules.pulsaLoads, 2);
       expect(find.text('Pulsa STORE-JOGJA-01'), findsOneWidget);
@@ -140,7 +166,7 @@ void main() {
         storeConfig: StoreConfigService(usesEdc: true),
       ),
     );
-    await tester.tap(find.byKey(const Key('edc-payment')));
+    await openFeature(tester, 'edc-payment');
     await tester.pumpAndSettle();
     expect(find.text('Dibatalkan oleh kasir'), findsOneWidget);
     expect(find.text('Struk demo'), findsNothing);
@@ -156,7 +182,7 @@ void main() {
         storeConfig: StoreConfigService(usesEdc: true),
       ),
     );
-    await tester.tap(find.byKey(const Key('edc-payment')));
+    await openFeature(tester, 'edc-payment');
     await tester.pump();
     await tester.pumpWidget(const SizedBox());
     modules.pendingLoad!.complete();

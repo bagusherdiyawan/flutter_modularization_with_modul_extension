@@ -22,18 +22,51 @@ class _CashierPageState extends State<CashierPage> {
   bool _busy = false;
   String _message = '';
   int _invoiceSequence = 0;
+  bool _pulsaReady = false;
+  bool _edcReady = false;
+
+  Future<bool> _confirmDownload(String feature, bool ready) async {
+    if (ready) return true;
+    setState(() => _busy = true);
+    final accepted = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text("Unduh fitur $feature?"),
+        content: const Text(
+          "Aplikasi akan meminta Google Play memasang modul jika belum tersedia. Koneksi internet mungkin diperlukan.",
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text("Batal"),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text("Unduh"),
+          ),
+        ],
+      ),
+    );
+    if (!mounted) return false;
+    setState(() => _busy = false);
+    return accepted == true;
+  }
 
   String _newInvoice() =>
       'INV-${DateTime.now().microsecondsSinceEpoch}-${++_invoiceSequence}';
 
   Future<void> _openPulsa() async {
     if (_busy || !widget.storeConfig.usesPulsa) return;
+    if (!await _confirmDownload("Pulsa / PPOB", _pulsaReady) || !mounted) {
+      return;
+    }
     setState(() {
       _busy = true;
       _message = 'Menyiapkan modul Pulsa & PPOB...';
     });
     try {
       await widget.modules.loadPulsa();
+      _pulsaReady = true;
       if (!mounted) return;
       setState(() => _busy = false);
       await Navigator.of(context).push<void>(
@@ -52,12 +85,14 @@ class _CashierPageState extends State<CashierPage> {
 
   Future<void> _payEdc() async {
     if (_busy || !widget.storeConfig.usesEdc) return;
+    if (!await _confirmDownload("EDC", _edcReady) || !mounted) return;
     setState(() {
       _busy = true;
       _message = 'Menyiapkan modul Mesin EDC...';
     });
     try {
       await widget.modules.loadEdc();
+      _edcReady = true;
       if (!mounted) return;
       setState(() => _message = 'Menunggu transaksi EDC selesai...');
       final result = await widget.modules.payWithEdc(
