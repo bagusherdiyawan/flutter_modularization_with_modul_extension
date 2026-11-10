@@ -1,14 +1,14 @@
 plugins { id 'com.android.dynamic-feature' }
 android {
     namespace 'com.pos.modularization.pulsaComponent'
-    compileSdk 35
+    compileSdk 36
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
     defaultConfig {
         minSdk 24
-        targetSdk 35
+        targetSdk 36
     }
     // Flutter stages the split Dart libraries and component assets here.
     // Omitting these source sets produces feature splits without their payload.

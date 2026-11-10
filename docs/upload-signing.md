@@ -37,3 +37,11 @@ Sertifikat publik `upload-certificate.pem` hanya diperlukan jika Console meminta
 ## Status
 
 Key sudah dibuat dan diperiksa secara lokal. Workflow signing belum dijalankan di GitHub sampai secret diisi dan perubahan dipush. Tidak ada upload ke Play Console yang dilakukan otomatis.
+
+## Target Android dan peringatan deobfuscation
+
+Aplikasi dan kedua dynamic feature menggunakan compileSdk/targetSdk 36 serta minSdk 24. Workflow memasang Android SDK Platform 36 dan memakai AGP 8.10.1 dengan Gradle 8.12. Gunakan run workflow baru untuk memperbarui version code dan artifact; jangan mengunggah ulang bundle kode versi 104.
+
+Peringatan deobfuscation di Play Console berbeda dari penolakan target SDK. Perintah build tidak memakai Dart --obfuscate, dan Flutter 3.32.8 menonaktifkan shrinking pada build deferred components ini. Karena itu file mapping R8 mungkin tidak dihasilkan. Jangan membuat mapping kosong atau mengaktifkan shrinking hanya untuk menghilangkan peringatan. Jika obfuscation ditambahkan di masa depan, simpan mapping/symbol yang benar dari build yang sama.
+
+Target 36 mengaktifkan perubahan perilaku Android 16 yang relevan. Setelah build sukses, uji kasir, dialog, navigasi, Pulsa, dan EDC pada perangkat sebelum memperluas distribusi.
