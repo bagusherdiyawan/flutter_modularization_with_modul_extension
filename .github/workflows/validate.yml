@@ -16,6 +16,10 @@ jobs:
           distribution: temurin
           java-version: '17'
       - uses: android-actions/setup-android@v3
+        with:
+          # The legacy 'tools' package in the action default is no longer available.
+          packages: platform-tools
+          log-accepted-android-sdk-licenses: false
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.32.8'
