@@ -3,6 +3,14 @@ plugins {
     id 'org.jetbrains.kotlin.android'
     id 'dev.flutter.flutter-gradle-plugin'
 }
+def uploadStore = System.getenv('SMARTPOS_KEYSTORE_PATH')
+def requireUploadSigning = System.getenv('SMARTPOS_REQUIRE_UPLOAD_SIGNING') == 'true'
+def signingNames = ['ANDROID_KEYSTORE_PASSWORD', 'ANDROID_KEY_ALIAS', 'ANDROID_KEY_PASSWORD']
+if (requireUploadSigning || uploadStore) {
+    if (!uploadStore || !file(uploadStore).isFile() || signingNames.any { !System.getenv(it) }) {
+        throw new GradleException('Upload signing configuration is incomplete. Check keystore path and signing secrets.')
+    }
+}
 android {
     namespace 'com.pos.modularization'
     compileSdk 35
@@ -20,10 +28,20 @@ android {
         versionName flutter.versionName
     }
     dynamicFeatures = [':pulsaComponent', ':edcComponent']
+    signingConfigs {
+        if (uploadStore) {
+            upload {
+                storeFile file(uploadStore)
+                storePassword System.getenv('ANDROID_KEYSTORE_PASSWORD')
+                keyAlias System.getenv('ANDROID_KEY_ALIAS')
+                keyPassword System.getenv('ANDROID_KEY_PASSWORD')
+            }
+        }
+    }
     buildTypes {
         release {
-            // Development/internal testing only. Configure an upload key before production.
-            signingConfig signingConfigs.debug
+            // Validation builds use debug signing; the Internal Testing workflow requires upload signing.
+            signingConfig uploadStore ? signingConfigs.upload : signingConfigs.debug
         }
     }
 }
