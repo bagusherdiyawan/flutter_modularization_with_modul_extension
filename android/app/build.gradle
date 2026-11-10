@@ -22,7 +22,7 @@ android {
     kotlinOptions { jvmTarget = '17' }
     defaultConfig {
         applicationId 'com.pos.modularization'
-        minSdk 23
+        minSdk 24
         targetSdk 35
         versionCode flutter.versionCode
         versionName flutter.versionName

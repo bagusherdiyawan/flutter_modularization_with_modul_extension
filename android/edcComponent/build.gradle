@@ -7,7 +7,7 @@ android {
         targetCompatibility JavaVersion.VERSION_17
     }
     defaultConfig {
-        minSdk 23
+        minSdk 24
         targetSdk 35
     }
     // Flutter stages the split Dart libraries and component assets here.

@@ -26,7 +26,10 @@ panduan merupakan ilustrasi, bukan hasil pengukuran proyek ini.
 - Flutter **3.32.8** / Dart **3.8.x** (`.fvmrc`).
 - JDK **17** (Gradle 8.12 juga mendukung JDK 21).
 - Android SDK Platform **35**, build tools, NDK **26.3.11579264**.
-- AGP **8.7.3**, Kotlin **2.1.0**, Play Feature Delivery **2.1.0**, minSdk **23**.
+- AGP **8.7.3**, Kotlin **2.1.0**, Play Feature Delivery **2.1.0**, minSdk **24** (Android 7.0).
+
+Minimum Android 7.0 dipakai untuk memenuhi persyaratan perlindungan otomatis
+Google Play pada aplikasi ini. Perangkat Android 6.0/API 23 tidak lagi didukung.
 
 Gunakan Flutter dari PATH atau `fvm flutter`. Android SDK/lisensinya harus tersedia
 (`flutter doctor -v` dan `flutter doctor --android-licenses`). `local.properties`
