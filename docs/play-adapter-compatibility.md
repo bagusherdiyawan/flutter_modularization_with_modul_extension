@@ -25,7 +25,7 @@ Perubahan tambahan menangani splitSourceDirs yang null dan nama APK Play yang be
 
 - Source adapter Java berhasil dikompilasi terhadap Android SDK lokal dan dependency resmi Google.
 - Bytecode baru memakai GMS Tasks dan tidak memiliki referensi Tasks Play Core lama.
-- Task Gradle `:app:verifyDeferredManagerAbi` memeriksa bytecode adapter yang benar-benar dihasilkan release build. Kedua workflow menjalankan task ini sebelum mengunggah artifact.
+- Task Gradle `:app:verifyDeferredManagerAbi` memeriksa bytecode adapter yang benar-benar dihasilkan release build. Task menjadi dependency `bundleRelease`, sehingga berjalan di dalam satu pemanggilan `flutter build appbundle`. Workflow tidak memanggil ulang Gradle tanpa properti deferred-components.
 - Keberhasilan kompilasi lokal bukan bukti download modul pada perangkat. Full AAB/CI serta retest Play harus selesai sebelum klaim crash teratasi.
 
 ## Retest
@@ -33,3 +33,9 @@ Perubahan tambahan menangani splitSourceDirs yang null dan nama APK Play yang be
 Buat run baru Build Internal Testing AAB dari main, pastikan langkah pemeriksaan ABI lulus, unggah artifact bertanda tangan ke Play Internal Testing, dan update lewat Play Store. Jangan mengganti upload key atau applicationId.
 
 Coba EDC dan Pulsa. Jika masih crash, buka kembali Diagnosis modul dan salin laporan. Build baru menampilkan `adapter=feature-delivery-2.1-gms-v1`. Periksa apakah split EDC sekarang muncul. Logcat native tetap diperlukan bila proses abort berlanjut tanpa Java stack.
+
+## Urutan build dan baseline
+
+Pemanggilan `./gradlew :app:verifyDeferredManagerAbi` secara terpisah sebelumnya ikut menjalankan `compileFlutterBuildRelease`. Flutter Gradle Plugin 3.32.8 menetapkan deferred-components=false jika properti tidak dikirim. Build kedua ini berbeda dari build deferred awal dan dapat menginvalidasi output build Flutter, termasuk baseline yang dipantau sebagai output validator.
+
+Verifikasi ABI kini menjadi bagian dependency bundleRelease pada build Flutter yang sama. Baseline diperiksa sebelum dan sesudah build; pemisahan kode, isi AAB, dan tanda tangan tetap diperiksa. Tidak ada pemulihan baseline otomatis, pengabaian validasi, atau penerimaan baseline baru secara diam-diam.

@@ -67,3 +67,9 @@ tasks.register('verifyDeferredManagerAbi') {
         logger.lifecycle('PASS: deferred adapter uses the GMS Tasks ABI.')
     }
 }
+
+// Verify in the SAME Flutter-initiated Gradle invocation. A separate plain Gradle
+// invocation defaults deferred-components=false and can invalidate Flutter outputs.
+tasks.matching { it.name == 'bundleRelease' }.configureEach {
+    dependsOn 'verifyDeferredManagerAbi'
+}
