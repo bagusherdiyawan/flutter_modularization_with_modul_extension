@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
+import '../../core/services/module_diagnostics.dart';
 
 import '../../core/services/feature_modules.dart';
 import '../../core/services/store_config_service.dart';
@@ -50,6 +53,30 @@ class _CashierPageState extends State<CashierPage> {
     if (!mounted) return false;
     setState(() => _busy = false);
     return accepted == true;
+  }
+
+  Future<void> _showDiagnostics() async {
+    final report = await ModuleDiagnostics.report();
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Diagnosis modul'),
+        content: SingleChildScrollView(child: SelectableText(report)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Tutup'),
+          ),
+          TextButton(
+            onPressed: () async {
+              await Clipboard.setData(ClipboardData(text: report));
+            },
+            child: const Text('Salin diagnosis'),
+          ),
+        ],
+      ),
+    );
   }
 
   String _newInvoice() =>
@@ -142,7 +169,16 @@ class _CashierPageState extends State<CashierPage> {
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: widget.storeConfig,
     builder: (context, _) => Scaffold(
-      appBar: AppBar(title: const Text('SmartPOS Kasir Utama')),
+      appBar: AppBar(
+        title: const Text('SmartPOS Kasir Utama'),
+        actions: [
+          IconButton(
+            tooltip: 'Diagnosis modul',
+            onPressed: _busy ? null : _showDiagnostics,
+            icon: const Icon(Icons.bug_report_outlined),
+          ),
+        ],
+      ),
       body: Stack(
         children: [
           AbsorbPointer(
