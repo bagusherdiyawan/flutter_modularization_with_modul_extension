@@ -37,8 +37,8 @@ def check_sources():
     require("assets/edc_assets/" not in base and "assets/pulsa_assets/" not in base,
             "Feature assets must not be declared as base assets")
     app = ET.parse(ROOT / "android/app/src/main/AndroidManifest.xml").getroot().find("application")
-    require(app.get(ANDROID + "name") == "io.flutter.embedding.android.FlutterPlayStoreSplitApplication",
-            "Missing Flutter split application")
+    require(app.get(ANDROID + "name") == "com.pos.modularization.SmartPosApplication",
+            "Missing SmartPOS split application with modern Play adapter")
     for feature, component in FEATURES.items():
         require(f"name: {component}" in pubspec, f"Missing {component} in pubspec")
         entry = "edc_entry" if feature == "edc_module" else "pulsa_entry"

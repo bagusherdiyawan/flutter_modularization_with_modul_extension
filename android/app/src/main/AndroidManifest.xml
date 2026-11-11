@@ -1,7 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET" />
     <application
-        android:name="io.flutter.embedding.android.FlutterPlayStoreSplitApplication"
+        android:name="com.pos.modularization.SmartPosApplication"
         android:label="SmartPOS"
         android:icon="@drawable/ic_launcher">
         <activity

@@ -13,6 +13,7 @@ if (requireUploadSigning || uploadStore) {
 }
 android {
     namespace 'com.pos.modularization'
+    sourceSets.main.java.srcDir('src/main/modernPlay')
     compileSdk 36
     ndkVersion flutter.ndkVersion
     compileOptions {
@@ -48,4 +49,21 @@ android {
 flutter { source '../..' }
 dependencies {
     implementation 'com.google.android.play:feature-delivery:2.1.0'
+}
+
+// Guard against linking the deferred adapter to the removed legacy Play Core Task ABI.
+tasks.register('verifyDeferredManagerAbi') {
+    dependsOn 'compileReleaseJavaWithJavac'
+    doLast {
+        def javaCompile = tasks.named('compileReleaseJavaWithJavac').get()
+        def manager = new File(javaCompile.destinationDirectory.get().asFile,
+            'com/pos/modularization/SmartPosDeferredComponentManager.class')
+        if (!manager.isFile()) throw new GradleException('Modern deferred manager was not compiled.')
+        def bytecode = new String(manager.bytes, java.nio.charset.StandardCharsets.ISO_8859_1)
+        if (!bytecode.contains('com/google/android/gms/tasks/Task') ||
+                bytecode.contains('com/google/android/play/core/tasks/')) {
+            throw new GradleException('Deferred adapter uses an incompatible Play Tasks ABI.')
+        }
+        logger.lifecycle('PASS: deferred adapter uses the GMS Tasks ABI.')
+    }
 }

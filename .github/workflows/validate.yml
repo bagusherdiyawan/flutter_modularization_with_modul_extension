@@ -37,6 +37,7 @@ jobs:
         run: flutter build appbundle --release
       - name: Verify split payload and baseline
         run: |
+          (cd android && ./gradlew :app:verifyDeferredManagerAbi)
           python3 tool/check_deferred.py --aab build/app/outputs/bundle/release/app-release.aab
           git diff --exit-code -- deferred_components_loading_units.yaml android/app/src/main/AndroidManifest.xml
       - name: Upload build and validation artifacts
