@@ -68,12 +68,34 @@ public class SmartPosDeferredComponentManager implements DeferredComponentManage
   protected @NonNull SparseArray<String> loadingUnitIdToSharedLibraryNames;
 
   private FeatureInstallStateUpdatedListener listener;
+  private DeferredInstallCoordinator coordinator;
+
+  private void checkpoint(String component, String state) {
+    context.getSharedPreferences("module_diagnostics", Context.MODE_PRIVATE).edit()
+        .putString("nativeComponent", component).putString("nativeState", state)
+        .putLong("nativeTime", System.currentTimeMillis()).commit();
+    Log.d(TAG, component + ": " + state);
+  }
+
 
   private class FeatureInstallStateUpdatedListener implements SplitInstallStateUpdatedListener {
     @SuppressLint("DefaultLocale")
     public void onStateUpdate(@NonNull SplitInstallSessionState state) {
       int sessionId = state.sessionId();
+      // Play can deliver an event before startInstall's success callback registers the session.
+      if (sessionIdToName.get(sessionId) == null) {
+        for (String module : state.moduleNames()) {
+          if (coordinator.hasPending(module)) {
+            sessionIdToName.put(sessionId, module);
+            nameToSessionId.put(module, sessionId);
+            break;
+          }
+        }
+      }
       if (sessionIdToName.get(sessionId) != null) {
+        checkpoint(sessionIdToName.get(sessionId), "playStatus=" + state.status()
+            + "; session=" + sessionId + "; bytes=" + state.bytesDownloaded()
+            + "/" + state.totalBytesToDownload());
         switch (state.status()) {
           case SplitInstallSessionStatus.FAILED:
             {
@@ -82,15 +104,8 @@ public class SmartPosDeferredComponentManager implements DeferredComponentManage
                   String.format(
                       "Module \"%s\" (sessionId %d) install failed with: %s",
                       sessionIdToName.get(sessionId), sessionId, state.errorCode()));
-              flutterJNI.deferredComponentInstallFailure(
-                  sessionIdToLoadingUnitId.get(sessionId),
-                  "Module install failed with " + state.errorCode(),
-                  true);
-              if (channel != null) {
-                channel.completeInstallError(
-                    sessionIdToName.get(sessionId),
-                    "Android Deferred Component failed to install.");
-              }
+              coordinator.failed(sessionIdToName.get(sessionId),
+                  "Module install failed with " + state.errorCode(), true);
               sessionIdToName.delete(sessionId);
               sessionIdToLoadingUnitId.delete(sessionId);
               sessionIdToState.put(sessionId, "failed");
@@ -103,18 +118,7 @@ public class SmartPosDeferredComponentManager implements DeferredComponentManage
                   String.format(
                       "Module \"%s\" (sessionId %d) install successfully.",
                       sessionIdToName.get(sessionId), sessionId));
-              loadAssets(sessionIdToLoadingUnitId.get(sessionId), sessionIdToName.get(sessionId));
-              // We only load Dart shared lib for the loading unit id requested. Other loading units
-              // (if present) in the deferred component are not loaded, but can be loaded by
-              // calling again with their loading unit id. If no valid loadingUnitId was included in
-              // the installation request such as for an asset only feature, then we can skip this.
-              if (sessionIdToLoadingUnitId.get(sessionId) > 0) {
-                loadDartLibrary(
-                    sessionIdToLoadingUnitId.get(sessionId), sessionIdToName.get(sessionId));
-              }
-              if (channel != null) {
-                channel.completeInstallSuccess(sessionIdToName.get(sessionId));
-              }
+              coordinator.installed(sessionIdToName.get(sessionId));
               sessionIdToName.delete(sessionId);
               sessionIdToLoadingUnitId.delete(sessionId);
               sessionIdToState.put(sessionId, "installed");
@@ -127,11 +131,7 @@ public class SmartPosDeferredComponentManager implements DeferredComponentManage
                   String.format(
                       "Module \"%s\" (sessionId %d) install canceled.",
                       sessionIdToName.get(sessionId), sessionId));
-              if (channel != null) {
-                channel.completeInstallError(
-                    sessionIdToName.get(sessionId),
-                    "Android Deferred Component installation canceled.");
-              }
+              coordinator.failed(sessionIdToName.get(sessionId), "Module installation canceled", true);
               sessionIdToName.delete(sessionId);
               sessionIdToLoadingUnitId.delete(sessionId);
               sessionIdToState.put(sessionId, "cancelled");
@@ -211,7 +211,6 @@ public class SmartPosDeferredComponentManager implements DeferredComponentManage
     this.flutterApplicationInfo = ApplicationInfoLoader.load(context);
     splitInstallManager = SplitInstallManagerFactory.create(context);
     listener = new FeatureInstallStateUpdatedListener();
-    splitInstallManager.registerListener(listener);
     sessionIdToName = new SparseArray<>();
     sessionIdToLoadingUnitId = new SparseIntArray();
     sessionIdToState = new SparseArray<>();
@@ -220,6 +219,20 @@ public class SmartPosDeferredComponentManager implements DeferredComponentManage
     loadingUnitIdToComponentNames = new SparseArray<>();
     loadingUnitIdToSharedLibraryNames = new SparseArray<>();
     initLoadingUnitMappingToComponentNames();
+    coordinator = new DeferredInstallCoordinator(new DeferredInstallCoordinator.Loader() {
+      @Override public void load(int unit, String component) {
+        checkpoint(component, "loadingAssets; unit=" + unit);
+        loadAssets(unit, component);
+        if (unit > 0) loadDartLibrary(unit, component);
+        if (channel != null) channel.completeInstallSuccess(component);
+      }
+      @Override public void failed(int unit, String component, String message, boolean transientError) {
+        checkpoint(component, "failed; " + message);
+        if (flutterJNI != null) flutterJNI.deferredComponentInstallFailure(unit, message, transientError);
+        if (channel != null) channel.completeInstallError(component, message);
+      }
+    });
+    splitInstallManager.registerListener(listener);
   }
 
   public void setJNI(@NonNull FlutterJNI flutterJNI) {
@@ -294,72 +307,39 @@ public class SmartPosDeferredComponentManager implements DeferredComponentManage
   }
 
   public void installDeferredComponent(int loadingUnitId, @Nullable String componentName) {
-    String resolvedComponentName =
-        componentName != null ? componentName : loadingUnitIdToComponentNames.get(loadingUnitId);
-    if (resolvedComponentName == null) {
-      Log.e(
-          TAG, "Deferred component name was null and could not be resolved from loading unit id.");
+    if (!verifyJNI()) return;
+    String component = componentName != null ? componentName : loadingUnitIdToComponentNames.get(loadingUnitId);
+    if (component == null) {
+      flutterJNI.deferredComponentInstallFailure(loadingUnitId, "Missing loading-unit mapping", false);
       return;
     }
-
-    // Handle a loading unit that is included in the base module that does not need download.
-    if (resolvedComponentName.equals("") && loadingUnitId > 0) {
-      // No need to load assets as base assets are already loaded.
-      loadDartLibrary(loadingUnitId, resolvedComponentName);
+    if (component.isEmpty() && loadingUnitId > 0) {
+      loadDartLibrary(loadingUnitId, component);
       return;
     }
-
-    SplitInstallRequest request =
-        SplitInstallRequest.newBuilder().addModule(resolvedComponentName).build();
-
-    splitInstallManager
-        // Submits the request to install the module through the
-        // asynchronous startInstall() task. Your app needs to be
-        // in the foreground to submit the request.
-        .startInstall(request)
-        // Called when the install request is sent successfully. This is different than a successful
-        // install which is handled in FeatureInstallStateUpdatedListener.
-        .addOnSuccessListener(
-            sessionId -> {
-              sessionIdToName.put(sessionId, resolvedComponentName);
+    boolean installed = splitInstallManager.getInstalledModules().contains(component);
+    checkpoint(component, "request; alreadyInstalled=" + installed + "; unit=" + loadingUnitId);
+    coordinator.request(loadingUnitId, component, installed, () -> {
+      SplitInstallRequest request = SplitInstallRequest.newBuilder().addModule(component).build();
+      splitInstallManager.startInstall(request)
+          .addOnSuccessListener(sessionId -> {
+            if (coordinator.hasPending(component)) {
+              sessionIdToName.put(sessionId, component);
               sessionIdToLoadingUnitId.put(sessionId, loadingUnitId);
-              if (nameToSessionId.containsKey(resolvedComponentName)) {
-                sessionIdToState.remove(nameToSessionId.get(resolvedComponentName));
-              }
-              nameToSessionId.put(resolvedComponentName, sessionId);
+              nameToSessionId.put(component, sessionId);
               sessionIdToState.put(sessionId, "Requested");
-            })
-        .addOnFailureListener(
-            exception -> {
-              switch (((SplitInstallException) exception).getErrorCode()) {
-                case SplitInstallErrorCode.NETWORK_ERROR:
-                  flutterJNI.deferredComponentInstallFailure(
-                      loadingUnitId,
-                      "Install of deferred component module \""
-                          + componentName
-                          + "\" failed with a network error",
-                      true);
-                  break;
-                case SplitInstallErrorCode.MODULE_UNAVAILABLE:
-                  flutterJNI.deferredComponentInstallFailure(
-                      loadingUnitId,
-                      "Install of deferred component module \""
-                          + componentName
-                          + "\" failed as it is unavailable",
-                      false);
-                  break;
-                default:
-                  flutterJNI.deferredComponentInstallFailure(
-                      loadingUnitId,
-                      String.format(
-                          "Install of deferred component module \"%s\" failed with error %d: %s",
-                          componentName,
-                          ((SplitInstallException) exception).getErrorCode(),
-                          ((SplitInstallException) exception).getMessage()),
-                      false);
-                  break;
-              }
-            });
+            }
+            checkpoint(component, "accepted; session=" + sessionId);
+            coordinator.accepted(component, sessionId,
+                splitInstallManager.getInstalledModules().contains(component));
+          })
+          .addOnFailureListener(error -> {
+            int code = error instanceof SplitInstallException
+                ? ((SplitInstallException) error).getErrorCode() : 0;
+            coordinator.failed(component, "Play install failed: " + code,
+                code != SplitInstallErrorCode.MODULE_UNAVAILABLE);
+          });
+    });
   }
 
   @NonNull
@@ -469,14 +449,17 @@ public class SmartPosDeferredComponentManager implements DeferredComponentManage
     searchPaths.add(aotSharedLibraryName);
 
     for (String path : apkPaths) {
-      searchPaths.add(path + "!lib/" + abi + "/" + aotSharedLibraryName);
+      searchPaths.add(DeferredLibraryPath.inApk(path, abi, aotSharedLibraryName));
     }
     for (String path : soPaths) {
       searchPaths.add(path);
     }
 
+    checkpoint(componentName, "loadingDart; unit=" + loadingUnitId
+        + "; candidates=" + searchPaths.toString());
     flutterJNI.loadDartDeferredLibrary(
         loadingUnitId, searchPaths.toArray(new String[searchPaths.size()]));
+    checkpoint(componentName, "dartLibrarySubmitted; unit=" + loadingUnitId);
   }
 
   public boolean uninstallDeferredComponent(int loadingUnitId, @Nullable String componentName) {
